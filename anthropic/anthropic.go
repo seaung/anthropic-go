@@ -2,13 +2,17 @@ package anthropic
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"sync"
+	"time"
 )
 
 const (
-	baseURL     = "https://api.anthropic.com/"
+	baseURL     = "https://api.anthropic.com"
 	clientID    = "anthropic-golang/0.4.3"
 	apiPrompt   = "\n\nAssistant:"
 	HumanPrompt = "\n\nHuman:"
@@ -32,12 +36,21 @@ type CompletionResponse struct {
 	LogID      string `json:"log_id"`
 }
 
-func NewClient() *Client {
-	return &Client{}
+func NewClient(client *http.Client, apiKey string) *Client {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return &Client{
+		APIKey: apiKey,
+		mux:    &sync.Mutex{},
+	}
 }
 
-func NewEnvClient() *Client {
-	return &Client{}
+func NewEnvClient(client *http.Client) *Client {
+	return &Client{
+		Client: client,
+		APIKey: os.Getenv("ANTHROPIC_API_KEY"),
+	}
 }
 
 func (c *Client) SetDebug(debug bool) {
@@ -47,14 +60,55 @@ func (c *Client) SetDebug(debug bool) {
 	c.Debug = debug
 }
 
-func (c *Client) newRequest(params interface{}, body io.Reader) (*http.Request, error) {
-	return nil, nil
+func (c *Client) SetProxy(uri string) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	u, err := url.Parse(uri)
+	if err != nil {
+		return
+	}
+
+	c.Client.Transport = &http.Transport{
+		Proxy: http.ProxyURL(u),
+	}
 }
 
-func (c *Client) NewRequest() {}
+func (c *Client) SetTimeout(timeout int) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 
-func (c *Client) Do() {}
+	c.Client.Timeout = time.Duration(timeout)
+}
 
-func (c *Client) do() {}
+func (c *Client) newRequest(body io.Reader) (*http.Request, error) {
+	uri := fmt.Sprintf("%s/v1/complete", baseURL)
+	req, err := http.NewRequest(http.MethodPost, uri, body)
+	if err != nil {
+		return nil, err
+	}
 
-func (c *Client) Completion(cxt context.Context) {}
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Client", clientID)
+	req.Header.Add("X-API-Key", c.APIKey)
+
+	return req, nil
+}
+
+func (c *Client) do(cxt context.Context, request *http.Request) (*http.Response, error) {
+	if cxt != nil {
+		request = request.WithContext(cxt)
+	}
+
+	if c.Debug {
+	}
+
+	return c.Client.Do(request)
+}
+
+func (c *Client) dumpRequest(request *http.Request) {}
+
+func (c *Client) Completion(cxt context.Context) (*CompletionResponse, error) {
+	var completion CompletionResponse
+	return &completion, nil
+}
