@@ -29,12 +29,10 @@ var ReadBodyError = errors.New("could not read error response.")
 type ErrorHandler func(*http.Response) error
 
 type Client struct {
-	APIKey   string
-	ProxyURl string
-	Client   *http.Client
-	Debug    bool
-	Header   http.Header
-	mux      *sync.Mutex
+	mux    *sync.Mutex
+	apiKey string
+	Client *http.Client
+	Debug  bool
 }
 
 type CompletionResponse struct {
@@ -51,7 +49,7 @@ func NewClient(client *http.Client, apiKey string) *Client {
 		client = http.DefaultClient
 	}
 	return &Client{
-		APIKey: apiKey,
+		apiKey: apiKey,
 		mux:    &sync.Mutex{},
 	}
 }
@@ -59,7 +57,7 @@ func NewClient(client *http.Client, apiKey string) *Client {
 func NewEnvClient(client *http.Client) *Client {
 	return &Client{
 		Client: client,
-		APIKey: os.Getenv("ANTHROPIC_API_KEY"),
+		apiKey: os.Getenv("ANTHROPIC_API_KEY"),
 	}
 }
 
@@ -70,7 +68,7 @@ func (c *Client) SetDebug(debug bool) {
 	c.Debug = debug
 }
 
-func (c *Client) SetProxy(uri string) {
+func (c *Client) Setproxy(uri string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -99,7 +97,7 @@ func (c *Client) newRequest(uri string, body io.Reader) (*http.Request, error) {
 
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Client", clientID)
-	req.Header.Add("X-API-Key", c.APIKey)
+	req.Header.Add("X-API-Key", c.apiKey)
 
 	return req, nil
 }
